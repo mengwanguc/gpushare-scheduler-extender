@@ -227,11 +227,11 @@ func GetUpdatedPodAnnotationSpec(oldPod *v1.Pod, devId int, totalGPUMemByDev int
 	return newPod
 }
 
-func PatchPodAnnotationSpec(oldPod *v1.Pod, devId int, totalGPUMemByDev int) ([]byte, error) {
+func PatchPodAnnotationSpec(oldPod *v1.Pod, devIds map[int]int, totalGPUMemByDev int) ([]byte, error) {
 	now := time.Now()
 	patchAnnotations := map[string]interface{}{
 		"metadata": map[string]map[string]string{"annotations": {
-			EnvResourceIndex:      fmt.Sprintf("%d", devId),
+			EnvResourceIndex:      fmt.Sprintf("%v", devIds),
 			EnvResourceByDev:      fmt.Sprintf("%d", totalGPUMemByDev),
 			EnvResourceByPod:      fmt.Sprintf("%d", GetGPUMemoryFromPodResource(oldPod)),
 			EnvAssignedFlag:       "false",
