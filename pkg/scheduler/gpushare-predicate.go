@@ -14,7 +14,7 @@ func NewGPUsharePredicate(clientset *kubernetes.Clientset, c *cache.SchedulerCac
 	return &Predicate{
 		Name: "gpusharingfilter",
 		Func: func(pod *v1.Pod, nodeName string, c *cache.SchedulerCache) (bool, error) {
-			log.Printf("info: check if the pod name %s can be scheduled on node %s", pod.Name, nodeName)
+			log.Printf("info: Meng check if the pod name %s can be scheduled on node %s", pod.Name, nodeName)
 			nodeInfo, err := c.GetNodeInfo(nodeName)
 			if err != nil {
 				return false, err

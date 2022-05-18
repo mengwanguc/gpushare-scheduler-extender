@@ -151,16 +151,26 @@ func (n *NodeInfo) Assume(pod *v1.Pod) (allocatable bool) {
 	defer n.rwmu.RUnlock()
 
 	availableGPUs := n.getAvailableGPUs()
-	reqGPU := uint(utils.GetGPUMemoryFromPodResource(pod))
-	log.Printf("debug: AvailableGPUs: %v in node %s", availableGPUs, n.name)
+	reqGPUMem := uint(utils.GetGPUMemoryFromPodResource(pod))
+	reqGPUCount := uint(utils.GetGPUCountFromPodResource(pod))
+
+	if reqGPUMem > 0 && reqGPUCount == 0 {
+		reqGPUCount = 1
+	}
+
+	log.Printf("debug: Meng AvailableGPUs: %v in node %s", availableGPUs, n.name)
+	log.Printf("debug: Meng reqGPUCount: %v reqGPUMem: %v", reqGPUCount, reqGPUMem)
 
 	if len(availableGPUs) > 0 {
 		for devID := 0; devID < len(n.devs); devID++ {
 			availableGPU, ok := availableGPUs[devID]
 			if ok {
-				if availableGPU >= reqGPU {
-					allocatable = true
-					break
+				if availableGPU >= reqGPUMem {
+					reqGPUCount -= 1
+					if reqGPUCount <= 0 {
+						allocatable = true
+						break
+					}
 				}
 			}
 		}
@@ -176,7 +186,7 @@ func (n *NodeInfo) Allocate(clientset *kubernetes.Clientset, pod *v1.Pod) (err e
 	defer n.rwmu.Unlock()
 	log.Printf("info: Allocate() ----Begin to allocate GPU for gpu mem for pod %s in ns %s----", pod.Name, pod.Namespace)
 	// 1. Update the pod spec
-	devId, found := n.allocateGPUID(pod)
+	devIds, found := n.allocateGPUIDs(pod)
 	if found {
 		log.Printf("info: Allocate() 1. Allocate GPU ID %d to pod %s in ns %s.----", devId, pod.Name, pod.Namespace)
 		// newPod := utils.GetUpdatedPodEnvSpec(pod, devId, nodeInfo.GetTotalGPUMemory()/nodeInfo.GetGPUCount())
@@ -258,6 +268,54 @@ func (n *NodeInfo) allocateGPUID(pod *v1.Pod) (candidateDevID int, found bool) {
 	reqGPU = uint(utils.GetGPUMemoryFromPodResource(pod))
 
 	if reqGPU > uint(0) {
+		log.Printf("info: reqGPU for pod %s in ns %s: %d", pod.Name, pod.Namespace, reqGPU)
+		log.Printf("info: AvailableGPUs: %v in node %s", availableGPUs, n.name)
+		if len(availableGPUs) > 0 {
+			for devID := 0; devID < len(n.devs); devID++ {
+				availableGPU, ok := availableGPUs[devID]
+				if ok {
+					if availableGPU >= reqGPU {
+						if candidateDevID == -1 || candidateGPUMemory > availableGPU {
+							candidateDevID = devID
+							candidateGPUMemory = availableGPU
+						}
+
+						found = true
+					}
+				}
+			}
+		}
+
+		if found {
+			log.Printf("info: Find candidate dev id %d for pod %s in ns %s successfully.",
+				candidateDevID,
+				pod.Name,
+				pod.Namespace)
+		} else {
+			log.Printf("warn: Failed to find available GPUs %d for the pod %s in the namespace %s",
+				reqGPU,
+				pod.Name,
+				pod.Namespace)
+		}
+	}
+
+	return candidateDevID, found
+}
+
+
+// allocate the GPUs' ID to the pod
+func (n *NodeInfo) allocateGPUIDs(pod *v1.Pod) (candidateDevIDs map[int]uint, found bool) {
+
+	reqGPUMem := uint(0)
+	reqGPUCount := uint(0)
+	found = false
+	candidateDevIDs = map[int]uint{}
+	availableGPUs := n.getAvailableGPUs()
+
+	reqGPUMem = uint(utils.GetGPUMemoryFromPodResource(pod))
+	reqGPUCount = uint(utils.GetGPUCountFromPodResource(pod))
+
+	if reqGPUMem > uint(0) {
 		log.Printf("info: reqGPU for pod %s in ns %s: %d", pod.Name, pod.Namespace, reqGPU)
 		log.Printf("info: AvailableGPUs: %v in node %s", availableGPUs, n.name)
 		if len(availableGPUs) > 0 {

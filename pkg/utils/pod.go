@@ -9,6 +9,14 @@ import (
 	"time"
 )
 
+func Max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
+
+
 // AssignedNonTerminatedPod selects pods that are assigned and non-terminal (scheduled and running).
 func AssignedNonTerminatedPod(pod *v1.Pod) bool {
 	if pod.DeletionTimestamp != nil {
@@ -153,6 +161,20 @@ func GetGPUMemoryFromPodResource(pod *v1.Pod) int {
 	}
 	return total
 }
+
+
+// GetGPUCountFromPodResource gets GPU Count of the Pod
+func GetGPUCountFromPodResource(pod *v1.Pod) int {
+	var total int
+	containers := pod.Spec.Containers
+	for _, container := range containers {
+		if val, ok := container.Resources.Limits[CountName]; ok {
+			total = Max (total, int(val.Value()))
+		}
+	}
+	return total
+}
+
 
 // GetGPUMemoryFromPodResource gets GPU Memory of the Container
 func GetGPUMemoryFromContainerResource(container v1.Container) int {

@@ -60,7 +60,7 @@ type Controller struct {
 }
 
 func NewController(clientset *kubernetes.Clientset, kubeInformerFactory kubeinformers.SharedInformerFactory, stopCh <-chan struct{}) (*Controller, error) {
-	log.Printf("info: Creating event broadcaster")
+	log.Printf("info: Meng Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	// eventBroadcaster.StartLogging(log.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: clientset.CoreV1().Events("")})
