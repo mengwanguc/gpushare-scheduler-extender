@@ -309,15 +309,18 @@ func (n *NodeInfo) allocateGPUIDs(pod *v1.Pod) (candidateDevIDs map[int]uint, fo
 	reqGPUMem := uint(0)
 	reqGPUCount := uint(0)
 	found = false
-	candidateDevIDs = map[int]uint{}
+	candidateDevIDs = map[int]int{}
 	availableGPUs := n.getAvailableGPUs()
 
 	reqGPUMem = uint(utils.GetGPUMemoryFromPodResource(pod))
-	reqGPUCount = uint(utils.GetGPUCountFromPodResource(pod))
+	reqGPUCount = utils.GetGPUCountFromPodResource(pod)
 
 	if reqGPUMem > uint(0) {
-		log.Printf("info: reqGPU for pod %s in ns %s: %d", pod.Name, pod.Namespace, reqGPU)
+		log.Printf("info: reqGPU for pod %s in ns %s: %d for %d GPUs", pod.Name, pod.Namespace, reqGPUMem, reqGPUCount)
 		log.Printf("info: AvailableGPUs: %v in node %s", availableGPUs, n.name)
+		if reqGPUCount == 0 {
+			reqGPUCount = 1
+		}
 		if len(availableGPUs) > 0 {
 			for devID := 0; devID < len(n.devs); devID++ {
 				availableGPU, ok := availableGPUs[devID]
