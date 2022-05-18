@@ -188,7 +188,7 @@ func (n *NodeInfo) Allocate(clientset *kubernetes.Clientset, pod *v1.Pod) (err e
 	// 1. Update the pod spec
 	devIds, found := n.allocateGPUIDs(pod)
 	if found {
-		log.Printf("info: Allocate() 1. Allocate GPU ID %d to pod %s in ns %s.----", devId, pod.Name, pod.Namespace)
+		log.Printf("info: Allocate() 1. Allocate GPU IDs %d to pod %s in ns %s.----", devIds, pod.Name, pod.Namespace)
 		// newPod := utils.GetUpdatedPodEnvSpec(pod, devId, nodeInfo.GetTotalGPUMemory()/nodeInfo.GetGPUCount())
 		//newPod = utils.GetUpdatedPodAnnotationSpec(pod, devId, n.GetTotalGPUMemory()/n.GetGPUCount())
 		patchedAnnotationBytes, err := utils.PatchPodAnnotationSpec(pod, devId, n.GetTotalGPUMemory()/n.GetGPUCount())
@@ -241,15 +241,20 @@ func (n *NodeInfo) Allocate(clientset *kubernetes.Clientset, pod *v1.Pod) (err e
 
 	// 3. update the device info if the pod is update successfully
 	if err == nil {
-		log.Printf("info: Allocate() 3. Try to add pod %s in ns %s to dev %d",
+		log.Printf("info: Allocate() 3. Try to add pod %s in ns %s to dev %v",
 			pod.Name,
 			pod.Namespace,
-			devId)
-		dev, found := n.devs[devId]
-		if !found {
-			log.Printf("warn: Pod %s in ns %s failed to find the GPU ID %d in node %s", pod.Name, pod.Namespace, devId, n.name)
-		} else {
-			dev.addPod(newPod)
+			devIds)
+		for devID, allocated := range devIDs {
+			if allocated == 0 {
+				continue
+			}
+			dev, found := n.devs[devId]
+			if !found {
+				log.Printf("warn: Pod %s in ns %s failed to find the GPU ID %d in node %s", pod.Name, pod.Namespace, devId, n.name)
+			} else {
+				dev.addPod(newPod)
+			}
 		}
 	}
 	log.Printf("info: Allocate() ----End to allocate GPU for gpu mem for pod %s in ns %s----", pod.Name, pod.Namespace)
@@ -304,11 +309,12 @@ func (n *NodeInfo) allocateGPUID(pod *v1.Pod) (candidateDevID int, found bool) {
 
 
 // allocate the GPUs' ID to the pod
-func (n *NodeInfo) allocateGPUIDs(pod *v1.Pod) (candidateDevIDs map[int]uint, found bool) {
+func (n *NodeInfo) allocateGPUIDs(pod *v1.Pod) (candidateDevIDs map[int]int, found bool) {
 
 	reqGPUMem := uint(0)
-	reqGPUCount := uint(0)
+	reqGPUCount := 0
 	found = false
+	foundGPUCount := 0
 	candidateDevIDs = map[int]int{}
 	availableGPUs := n.getAvailableGPUs()
 
@@ -325,32 +331,35 @@ func (n *NodeInfo) allocateGPUIDs(pod *v1.Pod) (candidateDevIDs map[int]uint, fo
 			for devID := 0; devID < len(n.devs); devID++ {
 				availableGPU, ok := availableGPUs[devID]
 				if ok {
-					if availableGPU >= reqGPU {
-						if candidateDevID == -1 || candidateGPUMemory > availableGPU {
-							candidateDevID = devID
-							candidateGPUMemory = availableGPU
-						}
-
-						found = true
+					if availableGPU >= reqGPU and foundGPUCount < reqGPUCount{
+						candidateDevIDs[devID] = 1
+						foundGPUCount += 1
+					} else {
+						candidateDevIDs[devID] = 0
 					}
 				}
 			}
 		}
+		
+		if foundGPUCount == reqGPUCount {
+			found = true
+		}
 
 		if found {
-			log.Printf("info: Find candidate dev id %d for pod %s in ns %s successfully.",
-				candidateDevID,
+			log.Printf("info: Find candidate dev ids %v for pod %s in ns %s successfully.",
+				candidateDevIDs,
 				pod.Name,
 				pod.Namespace)
 		} else {
-			log.Printf("warn: Failed to find available GPUs %d for the pod %s in the namespace %s",
+			log.Printf("warn: Failed to find available %d GPUs %d mem for the pod %s in the namespace %s",
+				reqGPUCount,
 				reqGPU,
 				pod.Name,
 				pod.Namespace)
 		}
 	}
 
-	return candidateDevID, found
+	return candidateDevIDs, found
 }
 
 func (n *NodeInfo) getAvailableGPUs() (availableGPUs map[int]uint) {
